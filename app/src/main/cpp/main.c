@@ -43,6 +43,13 @@ typedef struct
     Vector2 size;
     int yd;
     int speed;
+    Texture texture;
+
+    Rectangle frame_rec;
+    int current_frame;
+    int frames_counter;
+    int frames_speed;
+    int frames_count;
 } Player;
 
 void render_map(GameState *state)
@@ -56,7 +63,15 @@ void render_map(GameState *state)
 
 void render_player(GameState *state, Player *player)
 {
-    DrawRectangleV(player->pos, player->size, RED);
+#if GAME_DEBUG
+    DrawRectangleV((Vector2){.x = player->pos.x + 25, .y = player->pos.y}, (Vector2){.x = player->size.x - 25, .y = player->size.y}, RED);
+#endif
+    DrawTexturePro(
+        player->texture,
+        player->frame_rec,
+        (Rectangle){.x = player->pos.x, .y = player->pos.y, .height = player->size.y, .width = player->size.x},
+        (Vector2){0, 0}, 0,
+        WHITE);
 }
 
 bool is_player_jump(Player *player)
@@ -83,6 +98,18 @@ void update_player(Player *player)
     {
         player->pos.y = player->init_pos.y;
         player->yd = 0;
+    }
+
+    // Animation
+
+    player->frames_counter++;
+    if (player->frames_counter >= (60 / player->frames_speed))
+    {
+        player->frames_counter = 0;
+        player->current_frame++;
+        if (player->current_frame > player->frames_count - 1)
+            player->current_frame = 0;
+        player->frame_rec.x = (float)player->current_frame * (float)player->texture.width / player->frames_count;
     }
 }
 
@@ -115,9 +142,9 @@ void render_cactus(GameState *state)
     }
 }
 
-bool isColliding(Vector4 el1, Vector4 el2)
+bool isColliding(Rectangle el1, Rectangle el2)
 {
-    return (el1.x < el2.x + el2.w && el1.x + el1.w > el2.x && el1.y < el2.y + el2.z && el1.y + el1.z > el2.y);
+    return (el1.x < el2.x + el2.width && el1.x + el1.width > el2.x && el1.y < el2.y + el2.height && el1.y + el1.height > el2.y);
 }
 
 void checkColliding(GameState *state, Player *player)
@@ -128,16 +155,16 @@ void checkColliding(GameState *state, Player *player)
         {
             continue;
         }
-        Vector4 playerCord = {
-            .x = player->pos.x,
+        Rectangle playerCord = {
+            .x = player->pos.x + 25,
             .y = player->pos.y,
-            .w = player->size.x,
-            .z = player->size.y};
-        Vector4 cactusCord = {
+            .width = player->size.x - 25,
+            .height = player->size.y};
+        Rectangle cactusCord = {
             .x = state->cactus[i].x,
             .y = state->ground_pos - 100,
-            .w = 20,
-            .z = 100};
+            .width = 20,
+            .height = 100};
         if (isColliding(playerCord, cactusCord))
         {
 #if GAME_DEBUG
@@ -170,13 +197,19 @@ GameState init_game(int high_score)
     return state;
 }
 
-Player init_player(GameState *state)
+Player init_player(GameState *state, Texture texture)
 {
     Player player = {
-        .size = (Vector2){50, 120},
-        .init_pos = (Vector2){60, state->ground_pos - 120},
+        .size = (Vector2){.x = (texture.width / 8) * 3, .y = texture.height * 3},
+        .init_pos = (Vector2){60, state->ground_pos - texture.height * 3},
         .yd = 0,
         .speed = 6,
+        .texture = texture,
+        .frame_rec = {0.0f, 0.0f, (float)texture.width / 8, (float)texture.height},
+        .current_frame = 0,
+        .frames_counter = 0,
+        .frames_speed = 8,
+        .frames_count = 8,
     };
 
     player.pos = player.init_pos;
@@ -258,12 +291,20 @@ int main(void)
     SetTargetFPS(60);
 
     GameState state = init_game(0);
-    Player player = init_player(&state);
-
+    Image player_image = LoadImage("DinoSprites - doux.png");
+    if (player_image.data == NULL)
+    {
+        return 1;
+    }
+    // ImageResize(&player_image, player_image.width, player_image.height);
+    Texture player_texture = LoadTextureFromImage(player_image);
+    UnloadImage(player_image);
+    Player player = init_player(&state, player_texture);
     while (!WindowShouldClose())
     {
         BeginDrawing();
         ClearBackground(WHITE);
+        // DrawTexture(playerTexture, 100, 100, RED);
         switch (state.status)
         {
         case START:
@@ -278,7 +319,7 @@ int main(void)
             if (GetGestureDetected() == GESTURE_TAP)
             {
                 state = init_game(state.high_score);
-                player = init_player(&state);
+                player = init_player(&state, player_texture);
                 state.status = PLAYING;
             }
         }
