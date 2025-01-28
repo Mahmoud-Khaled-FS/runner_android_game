@@ -1,4 +1,6 @@
+#include <stdio.h>
 #include <android/log.h>
+
 #include "raymob.h"
 
 #define GAME_DEBUG true
@@ -25,10 +27,13 @@ typedef struct
     int ground_pos;
     int factor;
     double last_draw_time;
+    double last_score_time;
     Cactus cactus[CACTUS_COUNT];
     int speed;
     int cactus_num;
     GameStatus status;
+    int score;
+    int high_score;
 } GameState;
 
 typedef struct
@@ -138,12 +143,16 @@ void checkColliding(GameState *state, Player *player)
 #if GAME_DEBUG
             DrawRectangle(0, 0, 400, 400, RED);
 #endif
+            if (state->score > state->high_score)
+            {
+                state->high_score = state->score;
+            }
             state->status = END;
         }
     }
 }
 
-GameState init_game()
+GameState init_game(int high_score)
 {
     GameState state = {0};
     state.factor = GetScreenHeight() / 12;
@@ -153,6 +162,7 @@ GameState init_game()
     state.width = GetScreenWidth();
     state.speed = 5;
     state.status = START;
+    state.high_score = high_score;
     for (int i = 0; i < CACTUS_COUNT; i++)
     {
         state.cactus[i] = (Cactus){.x = 0, .is_dead = true};
@@ -186,6 +196,19 @@ void render_start(GameState *state)
     render_map(state);
 }
 
+void render_score(GameState *state)
+{
+    int fs = 50;
+    char score_str[10];
+    snprintf(score_str, sizeof(score_str), "%d", state->score);
+    int font_width = MeasureText(score_str, fs);
+    DrawText(score_str, state->width - 20 - font_width, state->y + 50, fs, GRAY);
+
+    char hstr[10];
+    snprintf(hstr, sizeof(hstr), "%d", state->high_score);
+    int h_width = MeasureText(hstr, fs);
+    DrawText(hstr, state->width - 60 - font_width - h_width, state->y + 50, fs, GRAY);
+}
 void render_playing(GameState *state, Player *player)
 {
 
@@ -205,8 +228,13 @@ void render_playing(GameState *state, Player *player)
             }
         }
     }
+    if (time_ms - state->last_score_time > 100)
+    {
+        state->last_score_time = time_ms;
+        state->score += 1;
+    }
     checkColliding(state, player);
-
+    render_score(state);
     render_map(state);
     render_cactus(state);
     render_player(state, player);
@@ -219,6 +247,7 @@ void render_end(GameState *state, Player *player)
     int text_width = MeasureText(text, font_size);
     DrawText(text, state->width / 2 - text_width / 2, state->ground_pos - 100, font_size, GRAY);
     render_map(state);
+    render_score(state);
     render_cactus(state);
     render_player(state, player);
 }
@@ -228,7 +257,7 @@ int main(void)
     InitWindow(0, 0, "deno");
     SetTargetFPS(60);
 
-    GameState state = init_game();
+    GameState state = init_game(0);
     Player player = init_player(&state);
 
     while (!WindowShouldClose())
@@ -248,7 +277,7 @@ int main(void)
             render_end(&state, &player);
             if (GetGestureDetected() == GESTURE_TAP)
             {
-                state = init_game();
+                state = init_game(state.high_score);
                 player = init_player(&state);
                 state.status = PLAYING;
             }
