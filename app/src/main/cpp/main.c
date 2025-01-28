@@ -15,7 +15,9 @@ typedef enum GameStatus
 
 typedef struct main
 {
-    int x;
+    Vector2 pos;
+    Vector2 size;
+    Texture texture;
     bool is_dead;
 } Cactus;
 
@@ -36,6 +38,18 @@ typedef struct
     int high_score;
 } GameState;
 
+Texture cactus_textures[4];
+
+typedef struct
+{
+    Texture texture;
+    Rectangle frame_rec;
+    int current_frame;
+    int frames_counter;
+    int frames_speed;
+    int frames_count;
+} StartAnimation;
+
 typedef struct
 {
     Vector2 pos;
@@ -43,8 +57,8 @@ typedef struct
     Vector2 size;
     int yd;
     int speed;
-    Texture texture;
 
+    Texture texture;
     Rectangle frame_rec;
     int current_frame;
     int frames_counter;
@@ -90,7 +104,7 @@ void update_player(Player *player)
         }
     }
     player->pos.y += player->yd;
-    if (player->init_pos.y - player->pos.y >= 260)
+    if (player->init_pos.y - player->pos.y >= 350)
     {
         player->yd = 1 * player->speed;
     }
@@ -120,13 +134,30 @@ void update_cactus(GameState *state)
         if (!state->cactus[i].is_dead)
         {
             // __android_log_print(ANDROID_LOG_INFO, "INFO", "%f", state->cactus[i].x);
-            state->cactus[i].x += -1 * state->speed;
-            if (state->cactus[i].x < 0)
+            state->cactus[i].pos.x += -1 * state->speed;
+            if (state->cactus[i].pos.x + state->cactus[i].size.x < 0)
             {
                 state->cactus[i].is_dead = true;
             }
         }
     }
+}
+
+Cactus create_cactus(GameState *state)
+{
+
+    Texture texture = cactus_textures[GetRandomValue(0, 3)];
+    int randomScale = 2;
+    Vector2 size = {
+        .x = texture.width * randomScale,
+        .y = texture.height * randomScale,
+    };
+    Cactus c = {
+        .pos = (Vector2){.x = state->width + size.x + 50, .y = state->ground_pos - size.y},
+        .size = size,
+        .texture = texture,
+    };
+    return c;
 }
 
 void render_cactus(GameState *state)
@@ -136,8 +167,14 @@ void render_cactus(GameState *state)
     {
         if (!state->cactus[i].is_dead)
         {
+            DrawTexturePro(
+                state->cactus[i].texture,
+                (Rectangle){.x = 0, .y = 0, .height = state->cactus[i].texture.height, .width = state->cactus[i].texture.width},
+                (Rectangle){.x = state->cactus[i].pos.x, .y = state->cactus[i].pos.y, .height = state->cactus[i].size.y, .width = state->cactus[i].size.x},
+                (Vector2){0, 0}, 0,
+                WHITE);
             // __android_log_print(ANDROID_LOG_INFO, "INFO", "%d", state->cactus[i].x);
-            DrawRectangleV((Vector2){.x = state->cactus[i].x, .y = state->ground_pos - 100}, (Vector2){20, 100}, GREEN);
+            // DrawRectangleV((Vector2){.x = state->cactus[i].x, .y = state->ground_pos - 100}, (Vector2){20, 100}, GREEN);
         }
     }
 }
@@ -161,10 +198,10 @@ void checkColliding(GameState *state, Player *player)
             .width = player->size.x - 25,
             .height = player->size.y};
         Rectangle cactusCord = {
-            .x = state->cactus[i].x,
-            .y = state->ground_pos - 100,
-            .width = 20,
-            .height = 100};
+            .x = state->cactus[i].pos.x,
+            .y = state->cactus[i].pos.y,
+            .width = state->cactus[i].size.x,
+            .height = state->cactus[i].size.y};
         if (isColliding(playerCord, cactusCord))
         {
 #if GAME_DEBUG
@@ -187,12 +224,12 @@ GameState init_game(int high_score)
     state.height = state.factor * 5;
     state.ground_pos = state.y + state.height;
     state.width = GetScreenWidth();
-    state.speed = 5;
+    state.speed = 7;
     state.status = START;
     state.high_score = high_score;
     for (int i = 0; i < CACTUS_COUNT; i++)
     {
-        state.cactus[i] = (Cactus){.x = 0, .is_dead = true};
+        state.cactus[i] = create_cactus(&state);
     }
     return state;
 }
@@ -203,7 +240,7 @@ Player init_player(GameState *state, Texture texture)
         .size = (Vector2){.x = (texture.width / 8) * 3, .y = texture.height * 3},
         .init_pos = (Vector2){60, state->ground_pos - texture.height * 3},
         .yd = 0,
-        .speed = 6,
+        .speed = 8,
         .texture = texture,
         .frame_rec = {0.0f, 0.0f, (float)texture.width / 8, (float)texture.height},
         .current_frame = 0,
@@ -216,7 +253,7 @@ Player init_player(GameState *state, Texture texture)
     return player;
 }
 
-void render_start(GameState *state)
+void render_start(GameState *state, StartAnimation *start_animation)
 {
     char *text = "Press To Start The Game.";
     int font_size = 60;
@@ -226,6 +263,24 @@ void render_start(GameState *state)
     {
         state->status = PLAYING;
     }
+    float w = start_animation->frame_rec.width * 6;
+    float h = start_animation->frame_rec.height * 6;
+
+    start_animation->frames_counter++;
+    if (start_animation->frames_counter >= (60 / start_animation->frames_speed))
+    {
+        start_animation->frames_counter = 0;
+        start_animation->current_frame++;
+        if (start_animation->current_frame > start_animation->frames_count - 1)
+            start_animation->current_frame = 0;
+        start_animation->frame_rec.x = (float)start_animation->current_frame * (float)start_animation->texture.width / start_animation->frames_count;
+    }
+    DrawTexturePro(
+        start_animation->texture,
+        start_animation->frame_rec,
+        (Rectangle){.x = state->width / 2 - w / 2, .y = (GetScreenHeight() / 2 - h / 2) - 100, .height = h, .width = w},
+        (Vector2){0, 0}, 0,
+        WHITE);
     render_map(state);
 }
 
@@ -256,7 +311,7 @@ void render_playing(GameState *state, Player *player)
         {
             if (state->cactus[i].is_dead)
             {
-                state->cactus[i] = (Cactus){.x = state->width + 50, .is_dead = false};
+                state->cactus[i] = create_cactus(state);
                 break;
             }
         }
@@ -266,6 +321,10 @@ void render_playing(GameState *state, Player *player)
         state->last_score_time = time_ms;
         state->score += 1;
     }
+    // if (state->score == 200)
+    // {
+    //     state->speed += 1;
+    // }
     checkColliding(state, player);
     render_score(state);
     render_map(state);
@@ -290,7 +349,6 @@ int main(void)
     InitWindow(0, 0, "deno");
     SetTargetFPS(60);
 
-    GameState state = init_game(0);
     Image player_image = LoadImage("DinoSprites - doux.png");
     if (player_image.data == NULL)
     {
@@ -299,6 +357,31 @@ int main(void)
     // ImageResize(&player_image, player_image.width, player_image.height);
     Texture player_texture = LoadTextureFromImage(player_image);
     UnloadImage(player_image);
+    char *image_path[4] = {
+        "Rock Pile 1 - WHITE - BIG.PNG",
+        "Rock Pile 7 - SILVER - BIG.PNG",
+        "Rock Pile 8 - ORANGE - BIG.PNG",
+        "Rock Pile 12 - BEIGE - BIG.PNG",
+    };
+    for (int i = 0; i < 4; i++)
+    {
+        Image image = LoadImage(image_path[i]);
+        cactus_textures[i] = LoadTextureFromImage(image);
+        UnloadImage(image);
+    }
+
+    Image start_animation_image = LoadImage("64X128_Runing_Free.png");
+    StartAnimation start_animation = {0};
+    UnloadImage(start_animation_image);
+
+    start_animation.texture = LoadTextureFromImage(start_animation_image);
+    start_animation.frame_rec = (Rectangle){0.0f, 0.0f, (float)start_animation.texture.width / 8, (float)start_animation.texture.height};
+    start_animation.current_frame = 0;
+    start_animation.frames_counter = 0;
+    start_animation.frames_speed = 8;
+    start_animation.frames_count = 8;
+
+    GameState state = init_game(0);
     Player player = init_player(&state, player_texture);
     while (!WindowShouldClose())
     {
@@ -308,7 +391,7 @@ int main(void)
         switch (state.status)
         {
         case START:
-            render_start(&state);
+            render_start(&state, &start_animation);
             break;
         case PLAYING:
             render_playing(&state, &player);
