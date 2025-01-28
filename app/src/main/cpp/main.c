@@ -3,7 +3,7 @@
 
 #include "raymob.h"
 
-#define GAME_DEBUG true
+#define GAME_DEBUG false
 #define CACTUS_COUNT 10
 
 typedef enum GameStatus
@@ -38,8 +38,6 @@ typedef struct
     int high_score;
 } GameState;
 
-Texture cactus_textures[4];
-
 typedef struct
 {
     Texture texture;
@@ -66,13 +64,35 @@ typedef struct
     int frames_count;
 } Player;
 
+typedef struct
+{
+    Texture texture;
+    int speed;
+    int x;
+} Layer;
+
+// Global Variable
+Layer background[2];
+Texture cactus_textures[4];
+
 void render_map(GameState *state)
 {
 #if GAME_DEBUG
     DrawLineEx((Vector2){.x = 0, .y = state->y}, (Vector2){.y = state->y, .x = state->width}, 3, RED);
     DrawLineEx((Vector2){.x = 0, .y = state->ground_pos + state->factor}, (Vector2){.y = state->ground_pos + state->factor, .x = state->width}, 3, RED);
 #endif
-    DrawLineEx((Vector2){.x = 0, .y = state->ground_pos}, (Vector2){.y = state->ground_pos, .x = state->width}, 3, BLACK);
+    DrawTexturePro(
+        background[0].texture,
+        (Rectangle){0, 0, background[0].texture.width, background[0].texture.height},
+        (Rectangle){.x = background[0].x, .y = state->y, .height = state->height + 80, .width = state->width},
+        (Vector2){0, 0}, 0,
+        WHITE);
+    DrawTexturePro(
+        background[1].texture,
+        (Rectangle){0, 0, background[1].texture.width, background[1].texture.height},
+        (Rectangle){.x = background[1].x, .y = state->y, .height = state->height + 80, .width = state->width},
+        (Vector2){0, 0}, 0,
+        WHITE);
 }
 
 void render_player(GameState *state, Player *player)
@@ -133,7 +153,6 @@ void update_cactus(GameState *state)
     {
         if (!state->cactus[i].is_dead)
         {
-            // __android_log_print(ANDROID_LOG_INFO, "INFO", "%f", state->cactus[i].x);
             state->cactus[i].pos.x += -1 * state->speed;
             if (state->cactus[i].pos.x + state->cactus[i].size.x < 0)
             {
@@ -173,8 +192,6 @@ void render_cactus(GameState *state)
                 (Rectangle){.x = state->cactus[i].pos.x, .y = state->cactus[i].pos.y, .height = state->cactus[i].size.y, .width = state->cactus[i].size.x},
                 (Vector2){0, 0}, 0,
                 WHITE);
-            // __android_log_print(ANDROID_LOG_INFO, "INFO", "%d", state->cactus[i].x);
-            // DrawRectangleV((Vector2){.x = state->cactus[i].x, .y = state->ground_pos - 100}, (Vector2){20, 100}, GREEN);
         }
     }
 }
@@ -255,10 +272,12 @@ Player init_player(GameState *state, Texture texture)
 
 void render_start(GameState *state, StartAnimation *start_animation)
 {
+    render_map(state);
+
     char *text = "Press To Start The Game.";
     int font_size = 60;
     int text_width = MeasureText(text, font_size);
-    DrawText(text, state->width / 2 - text_width / 2, state->ground_pos - 100, font_size, GRAY);
+    DrawText(text, state->width / 2 - text_width / 2, state->ground_pos - 100, font_size, WHITE);
     if (GetGestureDetected() == GESTURE_TAP)
     {
         state->status = PLAYING;
@@ -281,7 +300,6 @@ void render_start(GameState *state, StartAnimation *start_animation)
         (Rectangle){.x = state->width / 2 - w / 2, .y = (GetScreenHeight() / 2 - h / 2) - 100, .height = h, .width = w},
         (Vector2){0, 0}, 0,
         WHITE);
-    render_map(state);
 }
 
 void render_score(GameState *state)
@@ -290,12 +308,12 @@ void render_score(GameState *state)
     char score_str[10];
     snprintf(score_str, sizeof(score_str), "%d", state->score);
     int font_width = MeasureText(score_str, fs);
-    DrawText(score_str, state->width - 20 - font_width, state->y + 50, fs, GRAY);
+    DrawText(score_str, state->width - 20 - font_width, state->y + 50, fs, WHITE);
 
     char hstr[10];
     snprintf(hstr, sizeof(hstr), "%d", state->high_score);
     int h_width = MeasureText(hstr, fs);
-    DrawText(hstr, state->width - 60 - font_width - h_width, state->y + 50, fs, GRAY);
+    DrawText(hstr, state->width - 60 - font_width - h_width, state->y + 50, fs, WHITE);
 }
 void render_playing(GameState *state, Player *player)
 {
@@ -321,27 +339,44 @@ void render_playing(GameState *state, Player *player)
         state->last_score_time = time_ms;
         state->score += 1;
     }
-    // if (state->score == 200)
-    // {
-    //     state->speed += 1;
-    // }
+
+    for (int i = 0; i < 2; i++)
+    {
+        background[i].x -= background[i].speed;
+        if (background[i].x + state->width < 0)
+        {
+            background[i].x = state->width + (background[i].x + state->width);
+        }
+    }
+
     checkColliding(state, player);
-    render_score(state);
     render_map(state);
+    render_score(state);
     render_cactus(state);
     render_player(state, player);
 }
 
 void render_end(GameState *state, Player *player)
 {
-    char *text = "GAME OVER!";
-    int font_size = 60;
-    int text_width = MeasureText(text, font_size);
-    DrawText(text, state->width / 2 - text_width / 2, state->ground_pos - 100, font_size, GRAY);
     render_map(state);
+    char *text = "GAME OVER!";
+    int font_size = 80;
+    int text_width = MeasureText(text, font_size);
+    DrawText(text, state->width / 2 - text_width / 2, state->ground_pos - 300, font_size, WHITE);
     render_score(state);
     render_cactus(state);
     render_player(state, player);
+}
+
+Layer load_layer(char *path, int speed)
+{
+    Image i = LoadImage(path);
+    Layer l = {
+        .texture = LoadTextureFromImage(i),
+        .speed = speed,
+    };
+    UnloadImage(i);
+    return l;
 }
 
 int main(void)
@@ -354,7 +389,6 @@ int main(void)
     {
         return 1;
     }
-    // ImageResize(&player_image, player_image.width, player_image.height);
     Texture player_texture = LoadTextureFromImage(player_image);
     UnloadImage(player_image);
     char *image_path[4] = {
@@ -382,12 +416,14 @@ int main(void)
     start_animation.frames_count = 8;
 
     GameState state = init_game(0);
+    background[0] = load_layer("Background.png", 6);
+    background[1] = background[0];
+    background[1].x = state.width;
     Player player = init_player(&state, player_texture);
     while (!WindowShouldClose())
     {
         BeginDrawing();
-        ClearBackground(WHITE);
-        // DrawTexture(playerTexture, 100, 100, RED);
+        ClearBackground(BLACK);
         switch (state.status)
         {
         case START:
