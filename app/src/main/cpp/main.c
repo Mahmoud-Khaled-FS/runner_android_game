@@ -3,6 +3,14 @@
 
 #define GAME_DEBUG true
 #define CACTUS_COUNT 10
+
+typedef enum GameStatus
+{
+    START,
+    PLAYING,
+    END
+} GameStatus;
+
 typedef struct main
 {
     int x;
@@ -20,6 +28,7 @@ typedef struct
     Cactus cactus[CACTUS_COUNT];
     int speed;
     int cactus_num;
+    GameStatus status;
 } GameState;
 
 typedef struct
@@ -126,16 +135,16 @@ void checkColliding(GameState *state, Player *player)
             .z = 100};
         if (isColliding(playerCord, cactusCord))
         {
+#if GAME_DEBUG
             DrawRectangle(0, 0, 400, 400, RED);
+#endif
+            state->status = END;
         }
     }
 }
 
-int main(void)
+GameState init_game()
 {
-    InitWindow(0, 0, "deno");
-    SetTargetFPS(60);
-
     GameState state = {0};
     state.factor = GetScreenHeight() / 12;
     state.y = state.factor * 3;
@@ -143,46 +152,111 @@ int main(void)
     state.ground_pos = state.y + state.height;
     state.width = GetScreenWidth();
     state.speed = 5;
+    state.status = START;
+    for (int i = 0; i < CACTUS_COUNT; i++)
+    {
+        state.cactus[i] = (Cactus){.x = 0, .is_dead = true};
+    }
+    return state;
+}
+
+Player init_player(GameState *state)
+{
     Player player = {
         .size = (Vector2){50, 120},
-        .init_pos = (Vector2){60, state.ground_pos - 120},
+        .init_pos = (Vector2){60, state->ground_pos - 120},
         .yd = 0,
         .speed = 6,
     };
 
     player.pos = player.init_pos;
-    for (int i = 0; i < CACTUS_COUNT; i++)
+    return player;
+}
+
+void render_start(GameState *state)
+{
+    char *text = "Press To Start The Game.";
+    int font_size = 60;
+    int text_width = MeasureText(text, font_size);
+    DrawText(text, state->width / 2 - text_width / 2, state->ground_pos - 100, font_size, GRAY);
+    if (GetGestureDetected() == GESTURE_TAP)
     {
-        state.cactus[i] = (Cactus){.x = 0, .is_dead = true};
+        state->status = PLAYING;
     }
+    render_map(state);
+}
+
+void render_playing(GameState *state, Player *player)
+{
+
+    update_player(player);
+    update_cactus(state);
+    double time_ms = GetTime() * 1000;
+    if (time_ms - state->last_draw_time > 2000 + GetRandomValue(0, 3000))
+    {
+        __android_log_print(ANDROID_LOG_INFO, "INFO", "%f", time_ms - state->last_draw_time);
+        state->last_draw_time = time_ms;
+        for (int i = 0; i < CACTUS_COUNT; i++)
+        {
+            if (state->cactus[i].is_dead)
+            {
+                state->cactus[i] = (Cactus){.x = state->width + 50, .is_dead = false};
+                break;
+            }
+        }
+    }
+    checkColliding(state, player);
+
+    render_map(state);
+    render_cactus(state);
+    render_player(state, player);
+}
+
+void render_end(GameState *state, Player *player)
+{
+    char *text = "GAME OVER!";
+    int font_size = 60;
+    int text_width = MeasureText(text, font_size);
+    DrawText(text, state->width / 2 - text_width / 2, state->ground_pos - 100, font_size, GRAY);
+    render_map(state);
+    render_cactus(state);
+    render_player(state, player);
+}
+
+int main(void)
+{
+    InitWindow(0, 0, "deno");
+    SetTargetFPS(60);
+
+    GameState state = init_game();
+    Player player = init_player(&state);
+
     while (!WindowShouldClose())
     {
         BeginDrawing();
         ClearBackground(WHITE);
-
-        update_player(&player);
-        update_cactus(&state);
-        double time_ms = GetTime() * 1000;
-        if (time_ms - state.last_draw_time > 2000 + GetRandomValue(0, 3000))
+        switch (state.status)
         {
-            __android_log_print(ANDROID_LOG_INFO, "INFO", "%f", time_ms - state.last_draw_time);
-            state.last_draw_time = time_ms;
-            for (int i = 0; i < CACTUS_COUNT; i++)
+        case START:
+            render_start(&state);
+            break;
+        case PLAYING:
+            render_playing(&state, &player);
+            break;
+        case END:
+        {
+            render_end(&state, &player);
+            if (GetGestureDetected() == GESTURE_TAP)
             {
-                if (state.cactus[i].is_dead)
-                {
-                    state.cactus[i] = (Cactus){.x = state.width + 50, .is_dead = false};
-                    break;
-                }
+                state = init_game();
+                player = init_player(&state);
+                state.status = PLAYING;
             }
         }
-        checkColliding(&state, &player);
-        // double time = GetTime();
-        // std::cout << time;
-
-        render_map(&state);
-        render_cactus(&state);
-        render_player(&state, &player);
+        break;
+        default:
+            break;
+        }
         EndDrawing();
     }
 
