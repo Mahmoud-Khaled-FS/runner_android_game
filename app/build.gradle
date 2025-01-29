@@ -140,6 +140,7 @@ android {
             jniDebuggable false
             pseudoLocalesEnabled false
             zipAlignEnabled true
+            signingConfig signingConfigs.debug
         }
     }
     compileOptions {
