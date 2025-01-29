@@ -3,7 +3,7 @@
 
 #include "raymob.h"
 
-#define GAME_DEBUG true
+#define GAME_DEBUG false
 #define CACTUS_COUNT 10
 #define PLAYER_PADDING_LEFT 40
 #define PLAYER_PADDING_RIGHT 80
@@ -255,7 +255,6 @@ GameState init_game(int high_score)
     state.speed = 7;
     state.status = START;
     state.high_score = high_score;
-    state.cactus[0] = create_cactus(&state);
     return state;
 }
 
@@ -391,7 +390,10 @@ Layer load_layer(char *path, int speed)
 int main(void)
 {
     InitWindow(0, 0, "deno");
+    InitAudioDevice();
     SetTargetFPS(60);
+
+    Music m = LoadMusicStream("summer nights.ogg");
 
     Image player_image = LoadImage("DinoSprites - doux.png");
     if (player_image.data == NULL)
@@ -435,8 +437,10 @@ int main(void)
     background[1] = background[0];
     background[1].x = state.width;
     Player player = init_player(&state, player_texture);
+    PlayMusicStream(m);
     while (!WindowShouldClose())
     {
+        UpdateMusicStream(m);
         BeginDrawing();
         ClearBackground(BLACK);
         switch (state.status)
