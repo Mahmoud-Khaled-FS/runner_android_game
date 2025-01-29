@@ -3,8 +3,11 @@
 
 #include "raymob.h"
 
-#define GAME_DEBUG false
+#define GAME_DEBUG true
 #define CACTUS_COUNT 10
+#define PLAYER_PADDING_LEFT 40
+#define PLAYER_PADDING_RIGHT 80
+#define PLAYER_PADDING_BOTTOM 40
 
 typedef enum GameStatus
 {
@@ -84,13 +87,13 @@ void render_map(GameState *state)
     DrawTexturePro(
         background[0].texture,
         (Rectangle){0, 0, background[0].texture.width, background[0].texture.height},
-        (Rectangle){.x = background[0].x, .y = state->y, .height = state->height + 80, .width = state->width},
+        (Rectangle){.x = background[0].x, .y = state->y, .height = state->height + 200, .width = state->width},
         (Vector2){0, 0}, 0,
         WHITE);
     DrawTexturePro(
         background[1].texture,
         (Rectangle){0, 0, background[1].texture.width, background[1].texture.height},
-        (Rectangle){.x = background[1].x, .y = state->y, .height = state->height + 80, .width = state->width},
+        (Rectangle){.x = background[1].x, .y = state->y, .height = state->height + 200, .width = state->width},
         (Vector2){0, 0}, 0,
         WHITE);
 }
@@ -98,7 +101,7 @@ void render_map(GameState *state)
 void render_player(GameState *state, Player *player)
 {
 #if GAME_DEBUG
-    DrawRectangleV((Vector2){.x = player->pos.x + 25, .y = player->pos.y}, (Vector2){.x = player->size.x - 25, .y = player->size.y}, RED);
+    DrawRectangleV((Vector2){.x = player->pos.x + PLAYER_PADDING_LEFT, .y = player->pos.y}, (Vector2){.x = player->size.x - PLAYER_PADDING_RIGHT, .y = player->size.y}, RED);
 #endif
     DrawTexturePro(
         player->texture,
@@ -113,13 +116,21 @@ bool is_player_jump(Player *player)
     return player->yd != 0;
 }
 
-void update_player(Player *player)
+void update_player(GameState *state, Player *player)
 {
+    if (state->status == END)
+    {
+        player->current_frame = 14;
+        player->frame_rec.x = (float)player->current_frame * (float)player->texture.width / player->frames_count;
+        return;
+    }
     if (GetGestureDetected() == GESTURE_TAP)
     {
         if (!is_player_jump(player))
         {
+#if GAME_DEBUG
             DrawRectangle(0, 0, 100, 100, GREEN);
+#endif
             player->yd = -1 * player->speed;
         }
     }
@@ -135,14 +146,13 @@ void update_player(Player *player)
     }
 
     // Animation
-
     player->frames_counter++;
     if (player->frames_counter >= (60 / player->frames_speed))
     {
         player->frames_counter = 0;
         player->current_frame++;
-        if (player->current_frame > player->frames_count - 1)
-            player->current_frame = 0;
+        if (player->current_frame > 9)
+            player->current_frame = 4;
         player->frame_rec.x = (float)player->current_frame * (float)player->texture.width / player->frames_count;
     }
 }
@@ -166,7 +176,7 @@ Cactus create_cactus(GameState *state)
 {
 
     Texture texture = cactus_textures[GetRandomValue(0, 3)];
-    int randomScale = 2;
+    int randomScale = GetRandomValue(5, 6);
     Vector2 size = {
         .x = texture.width * randomScale,
         .y = texture.height * randomScale,
@@ -210,13 +220,13 @@ void checkColliding(GameState *state, Player *player)
             continue;
         }
         Rectangle playerCord = {
-            .x = player->pos.x + 25,
+            .x = player->pos.x + PLAYER_PADDING_LEFT,
             .y = player->pos.y,
-            .width = player->size.x - 25,
-            .height = player->size.y};
+            .width = player->size.x - PLAYER_PADDING_RIGHT,
+            .height = player->size.y - PLAYER_PADDING_BOTTOM};
         Rectangle cactusCord = {
-            .x = state->cactus[i].pos.x,
-            .y = state->cactus[i].pos.y,
+            .x = state->cactus[i].pos.x + 20,
+            .y = state->cactus[i].pos.y + 20,
             .width = state->cactus[i].size.x,
             .height = state->cactus[i].size.y};
         if (isColliding(playerCord, cactusCord))
@@ -229,6 +239,7 @@ void checkColliding(GameState *state, Player *player)
                 state->high_score = state->score;
             }
             state->status = END;
+            update_player(state, player);
         }
     }
 }
@@ -239,31 +250,30 @@ GameState init_game(int high_score)
     state.factor = GetScreenHeight() / 12;
     state.y = state.factor * 3;
     state.height = state.factor * 5;
-    state.ground_pos = state.y + state.height;
+    state.ground_pos = state.y + state.height + 150;
     state.width = GetScreenWidth();
     state.speed = 7;
     state.status = START;
     state.high_score = high_score;
-    for (int i = 0; i < CACTUS_COUNT; i++)
-    {
-        state.cactus[i] = create_cactus(&state);
-    }
+    state.cactus[0] = create_cactus(&state);
     return state;
 }
 
 Player init_player(GameState *state, Texture texture)
 {
+    int frame_count = 24;
+    int scale = 8;
     Player player = {
-        .size = (Vector2){.x = (texture.width / 8) * 3, .y = texture.height * 3},
-        .init_pos = (Vector2){60, state->ground_pos - texture.height * 3},
+        .size = (Vector2){.x = (texture.width / frame_count) * scale, .y = texture.height * scale},
+        .init_pos = (Vector2){60, state->ground_pos - texture.height * scale},
         .yd = 0,
         .speed = 8,
         .texture = texture,
-        .frame_rec = {0.0f, 0.0f, (float)texture.width / 8, (float)texture.height},
-        .current_frame = 0,
+        .frame_rec = {0.0f, 0.0f, (float)texture.width / frame_count, (float)texture.height},
+        .current_frame = 4,
         .frames_counter = 0,
         .frames_speed = 8,
-        .frames_count = 8,
+        .frames_count = frame_count,
     };
 
     player.pos = player.init_pos;
@@ -282,15 +292,14 @@ void render_start(GameState *state, StartAnimation *start_animation)
     {
         state->status = PLAYING;
     }
-    float w = start_animation->frame_rec.width * 6;
-    float h = start_animation->frame_rec.height * 6;
-
+    float w = start_animation->frame_rec.width * 15;
+    float h = start_animation->frame_rec.height * 15;
     start_animation->frames_counter++;
     if (start_animation->frames_counter >= (60 / start_animation->frames_speed))
     {
         start_animation->frames_counter = 0;
         start_animation->current_frame++;
-        if (start_animation->current_frame > start_animation->frames_count - 1)
+        if (start_animation->current_frame > 3)
             start_animation->current_frame = 0;
         start_animation->frame_rec.x = (float)start_animation->current_frame * (float)start_animation->texture.width / start_animation->frames_count;
     }
@@ -318,7 +327,7 @@ void render_score(GameState *state)
 void render_playing(GameState *state, Player *player)
 {
 
-    update_player(player);
+    update_player(state, player);
     update_cactus(state);
     double time_ms = GetTime() * 1000;
     if (time_ms - state->last_draw_time > 2000 + GetRandomValue(0, 3000))
@@ -391,11 +400,17 @@ int main(void)
     }
     Texture player_texture = LoadTextureFromImage(player_image);
     UnloadImage(player_image);
+    // char *image_path[4] = {
+    //     "Rock Pile 1 - WHITE - BIG.PNG",
+    //     "Rock Pile 7 - SILVER - BIG.PNG",
+    //     "Rock Pile 8 - ORANGE - BIG.PNG",
+    //     "Rock Pile 12 - BEIGE - BIG.PNG",
+    // };
     char *image_path[4] = {
-        "Rock Pile 1 - WHITE - BIG.PNG",
-        "Rock Pile 7 - SILVER - BIG.PNG",
-        "Rock Pile 8 - ORANGE - BIG.PNG",
-        "Rock Pile 12 - BEIGE - BIG.PNG",
+        "PNG0004.PNG",
+        "PNG0004.PNG",
+        "PNG0005.PNG",
+        "PNG0005.PNG",
     };
     for (int i = 0; i < 4; i++)
     {
@@ -404,16 +419,16 @@ int main(void)
         UnloadImage(image);
     }
 
-    Image start_animation_image = LoadImage("64X128_Runing_Free.png");
+    // Image start_animation_image = LoadImage("64X128_Runing_Free.png");
     StartAnimation start_animation = {0};
-    UnloadImage(start_animation_image);
+    // UnloadImage(start_animation_image);
 
-    start_animation.texture = LoadTextureFromImage(start_animation_image);
-    start_animation.frame_rec = (Rectangle){0.0f, 0.0f, (float)start_animation.texture.width / 8, (float)start_animation.texture.height};
+    start_animation.texture = player_texture;
+    start_animation.frame_rec = (Rectangle){0.0f, 0.0f, (float)start_animation.texture.width / 24, (float)start_animation.texture.height};
     start_animation.current_frame = 0;
     start_animation.frames_counter = 0;
     start_animation.frames_speed = 8;
-    start_animation.frames_count = 8;
+    start_animation.frames_count = 24;
 
     GameState state = init_game(0);
     background[0] = load_layer("Background.png", 6);
