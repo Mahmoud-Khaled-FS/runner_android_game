@@ -8,6 +8,7 @@
 #define PLAYER_PADDING_LEFT 40
 #define PLAYER_PADDING_RIGHT 80
 #define PLAYER_PADDING_BOTTOM 40
+#define CACTUS_PADDING 40
 
 typedef enum GameStatus
 {
@@ -135,7 +136,7 @@ void update_player(GameState *state, Player *player)
         }
     }
     player->pos.y += player->yd;
-    if (player->init_pos.y - player->pos.y >= 350)
+    if (player->init_pos.y - player->pos.y >= 300)
     {
         player->yd = 1 * player->speed;
     }
@@ -196,6 +197,12 @@ void render_cactus(GameState *state)
     {
         if (!state->cactus[i].is_dead)
         {
+#if GAME_DEBUG
+            DrawRectangleV(
+                (Vector2){.x = state->cactus[i].pos.x + CACTUS_PADDING, .y = state->cactus[i].pos.y + CACTUS_PADDING},
+                (Vector2){.x = state->cactus[i].size.x - CACTUS_PADDING * 2, .y = state->cactus[i].size.y - CACTUS_PADDING * 2},
+                GREEN);
+#endif
             DrawTexturePro(
                 state->cactus[i].texture,
                 (Rectangle){.x = 0, .y = 0, .height = state->cactus[i].texture.height, .width = state->cactus[i].texture.width},
@@ -225,10 +232,10 @@ void checkColliding(GameState *state, Player *player)
             .width = player->size.x - PLAYER_PADDING_RIGHT,
             .height = player->size.y - PLAYER_PADDING_BOTTOM};
         Rectangle cactusCord = {
-            .x = state->cactus[i].pos.x + 20,
-            .y = state->cactus[i].pos.y + 20,
-            .width = state->cactus[i].size.x,
-            .height = state->cactus[i].size.y};
+            .x = state->cactus[i].pos.x + CACTUS_PADDING,
+            .y = state->cactus[i].pos.y + CACTUS_PADDING,
+            .width = state->cactus[i].size.x - CACTUS_PADDING * 2,
+            .height = state->cactus[i].size.y - CACTUS_PADDING * 2};
         if (isColliding(playerCord, cactusCord))
         {
 #if GAME_DEBUG
